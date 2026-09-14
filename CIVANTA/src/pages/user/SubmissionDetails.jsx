@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -5,19 +6,22 @@ import {
   Clock,
   Building2,
   Flag,
-  MessageSquare,
   CheckCircle2,
   AlertTriangle,
   CloudRain,
   Mountain,
   Ban,
-  Check
+  Check,
+  Image as ImageIcon,
+  Maximize2
 } from "lucide-react";
 import Card from "../../components/ui/Card";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
+import SingleSubmissionMap from "../../components/maps/SingleSubmissionMap";
 import { useSubmissions } from "../../context/SubmissionsContext";
 import { useToast } from "../../context/ToastContext";
+import { getImageUrl } from "../../utils/imageUrl";
 
 const statuses = ["Submitted", "Verified", "Assigned", "In Progress", "Resolved"];
 
@@ -25,6 +29,7 @@ export default function SubmissionDetails({ admin }) {
   const { id } = useParams();
   const { submissions, updateSubmission } = useSubmissions();
   const { push } = useToast();
+  const [imgModalOpen, setImgModalOpen] = useState(false);
 
   const sub = submissions.find((s) => s.id === id) || submissions[0];
 
@@ -38,6 +43,8 @@ export default function SubmissionDetails({ admin }) {
 
   const currentIdx = statuses.indexOf(sub.status);
   const road = sub.road;
+  const lat = sub.lat || (sub.location && sub.location.coordinates ? sub.location.coordinates[1] : 26.18);
+  const lng = sub.lng || (sub.location && sub.location.coordinates ? sub.location.coordinates[0] : 91.75);
 
   const handleApproveBlock = async () => {
     try {
@@ -88,6 +95,7 @@ export default function SubmissionDetails({ admin }) {
         </div>
       </div>
 
+      {/* Main Overview */}
       <Card className="p-6 space-y-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900">{sub.title}</h2>
@@ -96,11 +104,61 @@ export default function SubmissionDetails({ admin }) {
 
         <div className="grid sm:grid-cols-4 gap-3 pt-2">
           <Info icon={Building2} k="Department" v={sub.department || "—"} />
-          <Info icon={MapPin} k="Location" v={typeof sub.location === "string" ? sub.location : `${sub.lat?.toFixed(4)}, ${sub.lng?.toFixed(4)}`} />
+          <Info icon={MapPin} k="Location" v={`${lat.toFixed(4)}, ${lng.toFixed(4)}`} />
           <Info icon={Flag} k="Priority" v={sub.priority || "Medium"} />
           <Info icon={Clock} k="Submitted" v={sub.created_at ? new Date(sub.created_at).toLocaleDateString() : "—"} />
         </div>
       </Card>
+
+      {/* Interactive Location & Verification Map */}
+      <Card className="p-6 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-brand-600" />
+            <h3 className="font-bold text-slate-900 text-base">
+              Location Verification Map
+            </h3>
+          </div>
+          <span className="text-xs font-semibold text-slate-500">
+            Pinned: {lat.toFixed(4)}, {lng.toFixed(4)}
+          </span>
+        </div>
+
+        <SingleSubmissionMap lat={lat} lng={lng} road={road} />
+      </Card>
+
+      {/* Uploaded Landslide Photo Evidence */}
+      {sub.image_url && (
+        <Card className="p-6 space-y-3 border-l-4 border-l-brand-600">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-brand-600" />
+              <h3 className="font-bold text-slate-900 text-base">
+                Uploaded Photo Evidence
+              </h3>
+            </div>
+            <button
+              onClick={() => setImgModalOpen(true)}
+              className="text-xs font-semibold text-brand-600 flex items-center gap-1 hover:underline"
+            >
+              <Maximize2 className="h-3.5 w-3.5" /> Enlarge Photo
+            </button>
+          </div>
+
+          <div className="relative group inline-block">
+            <img
+              src={getImageUrl(sub.image_url)}
+              alt="Uploaded Landslide Evidence"
+              className="h-64 w-auto max-w-full object-cover rounded-xl border border-slate-200 cursor-pointer shadow-sm hover:opacity-95 transition"
+              onClick={() => setImgModalOpen(true)}
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80";
+              }}
+            />
+          </div>
+        </Card>
+      )}
 
       {/* Risk Explainability & Linked Road Box */}
       {road && (
@@ -160,12 +218,12 @@ export default function SubmissionDetails({ admin }) {
         </Card>
       )}
 
-      {/* Admin Quick Action Controls */}
+      {/* Admin Action Bar */}
       {admin && (
         <Card className="p-6 bg-slate-900 text-white">
-          <h3 className="font-bold text-white text-base mb-2">Admin Approval & Live Road Management</h3>
+          <h3 className="font-bold text-white text-base mb-2">Admin Approval & Live Road Blocking</h3>
           <p className="text-xs text-slate-300 mb-4">
-            Approving this citizen report will set road segment <span className="font-mono text-amber-300">{sub.road_id || 'linked'}</span> to <span className="text-rose-400 font-bold">BLOCKED</span> for all connected maps in real time, triggering automatic route recalculation.
+            Verify the pinned location and landslide photo above. Approving this report will flip road segment <span className="font-mono text-amber-300">{sub.road_id || 'linked'}</span> to <span className="text-rose-400 font-bold">BLOCKED</span> across all live client maps instantly.
           </p>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -223,6 +281,29 @@ export default function SubmissionDetails({ admin }) {
           </div>
         </div>
       </Card>
+
+      {/* Image Modal Preview */}
+      {imgModalOpen && sub.image_url && (
+        <div className="fixed inset-0 z-[1000] bg-slate-950/80 backdrop-blur flex items-center justify-center p-4">
+          <div className="relative max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl bg-white p-2 shadow-2xl">
+            <button
+              onClick={() => setImgModalOpen(false)}
+              className="absolute top-4 right-4 bg-slate-900/80 text-white h-8 w-8 rounded-full flex items-center justify-center hover:bg-slate-900 z-10"
+            >
+              ✕
+            </button>
+            <img
+              src={getImageUrl(sub.image_url)}
+              alt="Landslide Evidence Enlarged"
+              className="max-h-[85vh] w-auto object-contain rounded-xl"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80";
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

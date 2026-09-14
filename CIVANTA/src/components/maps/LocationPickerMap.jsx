@@ -15,8 +15,9 @@ export default function LocationPickerMap({ lat, lng, onChange }) {
 
     const map = L.map(mapRef.current, {
       center: [initialLat, initialLng],
-      zoom: 9,
+      zoom: 12,
       zoomControl: true,
+      scrollWheelZoom: true,
     });
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -26,9 +27,9 @@ export default function LocationPickerMap({ lat, lng, onChange }) {
 
     const icon = L.divIcon({
       className: "custom-leaflet-marker",
-      html: `<div style="background-color: #ef4444; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>`,
-      iconSize: [18, 18],
-      iconAnchor: [9, 9],
+      html: `<div style="background-color: #ef4444; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
     });
 
     const marker = L.marker([initialLat, initialLng], { icon, draggable: true }).addTo(map);
@@ -64,10 +65,10 @@ export default function LocationPickerMap({ lat, lng, onChange }) {
   }, [lat, lng]);
 
   return (
-    <div className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: "300px" }}>
+    <div className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: "320px" }}>
       <div ref={mapRef} style={{ height: "100%", width: "100%" }} />
-      <div className="absolute bottom-2 left-2 z-[400] bg-white/90 backdrop-blur px-2.5 py-1 rounded-md text-xs font-semibold text-slate-700 shadow-sm">
-        📍 {lat ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : "Click on map to select location"}
+      <div className="absolute bottom-2 left-2 z-[400] bg-white/95 backdrop-blur px-3 py-1 rounded-md text-xs font-semibold text-slate-700 shadow-sm border border-slate-200">
+        📍 Pinned: {lat ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : "Click on map to select location"}
       </div>
     </div>
   );

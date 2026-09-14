@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
+  Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -17,17 +19,20 @@ import { useToast } from "../../context/ToastContext";
 import { useSubmissions } from "../../context/SubmissionsContext";
 import { useAuth } from "../../context/AuthContext";
 import LocationPickerMap from "../../components/maps/LocationPickerMap";
+import api from "../../services/api";
+import { getImageUrl } from "../../utils/imageUrl";
 
 const steps = [
   { key: "info", label: "Basic Info", icon: FileText },
   { key: "location", label: "Location", icon: MapPin },
-  { key: "evidence", label: "Evidence", icon: Paperclip },
+  { key: "evidence", label: "Evidence & Photo", icon: Paperclip },
   { key: "review", label: "Review", icon: CheckCircle2 },
 ];
 
 export default function Submit() {
   const [step, setStep] = useState(0);
   const [data, setData] = useState({ lat: 26.18, lng: 91.75 });
+  const [uploading, setUploading] = useState(false);
   const [submitted, setSubmitted] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const { push } = useToast();
@@ -51,6 +56,36 @@ export default function Submit() {
     setStep(step + 1);
   };
   const back = () => setStep(step - 1);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await api.post("/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const imageUrl = res.data.url;
+      setData((prev) => ({ ...prev, image_url: imageUrl }));
+      push({
+        type: "success",
+        title: "Image Uploaded",
+        message: "Landslide photo attached successfully.",
+      });
+    } catch (err) {
+      push({
+        type: "error",
+        title: "Upload Failed",
+        message: err.response?.data?.detail || "Could not upload image.",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const onSubmitFinal = async () => {
     setSubmitting(true);
@@ -121,7 +156,7 @@ export default function Submit() {
           Submit a Report
         </h1>
         <p className="text-sm text-slate-500">
-          Help us resolve issues faster with accurate information.
+          Help us resolve issues faster with accurate map pin and photo evidence.
         </p>
       </div>
 
@@ -158,7 +193,7 @@ export default function Submit() {
             <h3 className="font-bold text-slate-900">Basic Information</h3>
             <Input
               label="Title"
-              placeholder="Short description of the issue"
+              placeholder="e.g. Landslide blocking NH-415 highway"
               {...register("title", { required: "Required" })}
               error={errors.title?.message}
             />
@@ -194,7 +229,7 @@ export default function Submit() {
 
         {step === 1 && (
           <div className="grid gap-4">
-            <h3 className="font-bold text-slate-900">Location</h3>
+            <h3 className="font-bold text-slate-900">Location & Coordinates</h3>
             <div className="grid sm:grid-cols-2 gap-4">
               <Input
                 label="State"
@@ -214,7 +249,7 @@ export default function Submit() {
             />
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Pin location on map (Click or drag marker)
+                Pin precise location on interactive map (Click or drag marker)
               </label>
               <LocationPickerMap
                 lat={data.lat}
@@ -227,10 +262,47 @@ export default function Submit() {
 
         {step === 2 && (
           <div className="grid gap-4">
-            <h3 className="font-bold text-slate-900">Evidence (optional)</h3>
-            <DropZone label="Upload image" hint="JPG/PNG up to 5MB" />
-            <DropZone label="Upload document" hint="PDF up to 10MB" />
-            <DropZone label="Upload video (optional)" hint="MP4 up to 50MB" />
+            <h3 className="font-bold text-slate-900">Upload Landslide Photo / Evidence</h3>
+            <p className="text-xs text-slate-500">
+              Attach a photo of the road damage or landslide for verification by admin officers.
+            </p>
+
+            <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center cursor-pointer hover:border-brand-500 hover:bg-brand-50/20 transition relative overflow-hidden">
+              {uploading ? (
+                <div className="flex flex-col items-center gap-2 text-brand-600">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <span className="text-xs font-semibold">Uploading photo to server…</span>
+                </div>
+              ) : data.image_url ? (
+                <div className="flex flex-col items-center gap-2">
+                  <img
+                    src={getImageUrl(data.image_url)}
+                    alt="Landslide Preview"
+                    className="h-36 w-auto object-cover rounded-xl border border-slate-200 shadow-sm"
+                  />
+                  <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                    <CheckCircle2 className="h-4 w-4" /> Photo attached! Click to replace.
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="h-12 w-12 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center">
+                    <ImageIcon className="h-6 w-6" />
+                  </div>
+                  <div className="text-sm font-semibold text-slate-800">
+                    Click or drag landslide photo here
+                  </div>
+                  <div className="text-xs text-slate-500">JPG, PNG, WEBP up to 10MB</div>
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={uploading}
+              />
+            </label>
           </div>
         )}
 
@@ -242,9 +314,21 @@ export default function Submit() {
               <Field k="Category" v={data.category || "—"} />
               <Field k="State" v={data.state || "—"} />
               <Field k="District" v={data.district || "—"} />
-              <Field k="City" v={data.city || "—"} />
               <Field k="Pinned Coordinates" v={`${data.lat?.toFixed(4)}, ${data.lng?.toFixed(4)}`} />
+              <Field k="Photo Attached" v={data.image_url ? "Yes ✅" : "No"} />
             </div>
+
+            {data.image_url && (
+              <div>
+                <div className="text-xs text-slate-500 mb-1">Attached Photo Preview</div>
+                <img
+                  src={getImageUrl(data.image_url)}
+                  alt="Attachment"
+                  className="h-32 w-auto object-cover rounded-xl border border-slate-200 shadow-sm"
+                />
+              </div>
+            )}
+
             <div>
               <div className="text-xs text-slate-500">Description</div>
               <div className="mt-1 text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-xl p-3">
@@ -281,16 +365,5 @@ function Field({ k, v }) {
         {v}
       </div>
     </div>
-  );
-}
-
-function DropZone({ label, hint }) {
-  return (
-    <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50/30 transition">
-      <Paperclip className="h-5 w-5 text-slate-400" />
-      <div className="mt-2 text-sm font-semibold text-slate-800">{label}</div>
-      <div className="text-xs text-slate-500">{hint}</div>
-      <input type="file" className="hidden" />
-    </label>
   );
 }

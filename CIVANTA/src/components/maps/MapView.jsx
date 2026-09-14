@@ -54,10 +54,10 @@ export default function MapView({
     if (!mapRef.current || mapInstanceRef.current) return;
 
     const map = L.map(mapRef.current, {
-      center: [26.18, 91.75], // Centered around North East corridor (Guwahati - Itanagar)
-      zoom: 9,
-      zoomControl: true,
-      scrollWheelZoom: interactive,
+      center: [26.18, 91.75],
+      zoom: 11,
+      zoomControl: false,
+      scrollWheelZoom: true,
     });
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {

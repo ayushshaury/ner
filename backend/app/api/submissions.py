@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, text, update
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, func
 from app.db.session import get_db
 from app.models.submission import Submission
 from app.models.road import Road
@@ -13,7 +12,6 @@ from app.websocket.manager import manager
 from typing import List, Dict, Any, Optional
 import json
 import random
-import uuid
 
 router = APIRouter(prefix="/submissions", tags=["Submissions"])
 
@@ -22,13 +20,11 @@ def generate_submission_id():
     return f"CVT-{num}"
 
 async def format_submission(sub: Submission, db: AsyncSession) -> Dict[str, Any]:
-    # Extract location coordinates from geography
     loc_stmt = select(func.ST_AsGeoJSON(sub.location).label("geojson_str"))
     loc_res = await db.execute(loc_stmt)
     loc_str = loc_res.scalar_one_or_none()
     loc_dict = json.loads(loc_str) if loc_str else None
 
-    # Load history
     hist_stmt = select(SubmissionHistory).where(SubmissionHistory.submission_id == sub.id).order_by(SubmissionHistory.at.asc())
     hist_res = await db.execute(hist_stmt)
     history_items = [
@@ -41,7 +37,6 @@ async def format_submission(sub: Submission, db: AsyncSession) -> Dict[str, Any]
         for h in hist_res.scalars().all()
     ]
 
-    # Load linked road explainability if present
     road_dict = None
     if sub.road_id:
         r_stmt = select(
@@ -84,7 +79,6 @@ async def format_submission(sub: Submission, db: AsyncSession) -> Dict[str, Any]
                 "geometry": json.loads(r_row.geojson_str) if r_row.geojson_str else None
             }
 
-    # Format lat/lng for frontend consumption
     lat = loc_dict["coordinates"][1] if loc_dict and "coordinates" in loc_dict else 0.0
     lng = loc_dict["coordinates"][0] if loc_dict and "coordinates" in loc_dict else 0.0
 
@@ -94,6 +88,7 @@ async def format_submission(sub: Submission, db: AsyncSession) -> Dict[str, Any]
         "title": sub.title,
         "category": sub.category,
         "description": sub.description,
+        "image_url": sub.image_url,
         "lat": lat,
         "lng": lng,
         "location": loc_dict,
@@ -131,8 +126,6 @@ async def create_submission(
 ):
     sub_id = generate_submission_id()
 
-    # Find nearest road using ST_Distance in PostGIS
-    point_wkt = f"ST_SetSRID(ST_MakePoint({sub_in.lng}, {sub_in.lat}), 4326)::geography"
     nearest_stmt = select(Road.road_id).order_by(
         func.ST_Distance(Road.geometry, func.ST_SetSRID(func.ST_MakePoint(sub_in.lng, sub_in.lat), 4326))
     ).limit(1)
@@ -146,6 +139,7 @@ async def create_submission(
         title=sub_in.title,
         category=sub_in.category,
         description=sub_in.description,
+        image_url=sub_in.image_url,
         location=func.ST_SetSRID(func.ST_MakePoint(sub_in.lng, sub_in.lat), 4326),
         road_id=nearest_road_id,
         priority=sub_in.priority or "Medium",
@@ -156,18 +150,15 @@ async def create_submission(
     await db.commit()
     await db.refresh(sub)
 
-    # Initial history entry
     hist = SubmissionHistory(
         submission_id=sub.id,
         status="Submitted",
-        note="Report submitted by citizen"
+        note="Report submitted by citizen with location coordinates"
     )
     db.add(hist)
     await db.commit()
 
     formatted = await format_submission(sub, db)
-
-    # Broadcast WebSocket event
     await manager.broadcast("submission:created", formatted)
 
     return formatted
@@ -194,11 +185,12 @@ async def update_submission(
         sub.priority = sub_update.priority
     if sub_update.department:
         sub.department = sub_update.department
+    if sub_update.image_url:
+        sub.image_url = sub_update.image_url
 
     await db.commit()
     await db.refresh(sub)
 
-    # Log audit entry if status changed
     if sub_update.status and sub_update.status != old_status:
         hist = SubmissionHistory(
             submission_id=sub.id,
@@ -207,8 +199,6 @@ async def update_submission(
         )
         db.add(hist)
 
-        # Core side-effect flow per PRD §7:
-        # Moving to Verified/Assigned/In Progress blocks the linked road
         blocking_statuses = ["Verified", "Assigned", "In Progress"]
         if sub.road_id:
             road_stmt = select(Road).where(Road.road_id == sub.road_id)
@@ -248,8 +238,6 @@ async def update_submission(
 
     await db.commit()
     formatted = await format_submission(sub, db)
-
-    # Broadcast WebSocket update
     await manager.broadcast("submission:updated", formatted)
 
     return formatted

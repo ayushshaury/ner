@@ -67,6 +67,7 @@ export function SubmissionsProvider({ children }) {
         title: data.title,
         category: data.category,
         description: data.description,
+        image_url: data.image_url || null,
         lat: data.lat || 26.18,
         lng: data.lng || 91.75,
         priority: data.priority || "Medium",

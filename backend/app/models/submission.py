@@ -15,6 +15,7 @@ class Submission(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     location = mapped_column(Geography(geometry_type='POINT', srid=4326), nullable=False)
     road_id: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("roads.road_id"), nullable=True)
     priority: Mapped[str] = mapped_column(Text, default="Medium", nullable=True)

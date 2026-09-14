@@ -8,6 +8,7 @@ class SubmissionCreate(BaseModel):
     title: str
     category: str
     description: Optional[str] = None
+    image_url: Optional[str] = None
     lat: float
     lng: float
     priority: Optional[str] = "Medium"
@@ -17,6 +18,7 @@ class SubmissionUpdate(BaseModel):
     status: Optional[str] = None
     priority: Optional[str] = None
     department: Optional[str] = None
+    image_url: Optional[str] = None
 
 class SubmissionHistoryOut(BaseModel):
     id: int
@@ -33,6 +35,7 @@ class SubmissionOut(BaseModel):
     title: str
     category: str
     description: Optional[str] = None
+    image_url: Optional[str] = None
     location: Any  # dict with lat, lng or GeoJSON Point
     road_id: Optional[str] = None
     road: Optional[RoadOut] = None

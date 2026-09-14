@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Filter, Eye, Pencil, MessageSquare } from "lucide-react";
+import { Search, Filter, Eye, Image as ImageIcon, MapPin } from "lucide-react";
 import Card from "../../components/ui/Card";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
-import { useSubmissions } from "../../context/SubmissionsContext";
+import { getImageUrl } from "../../utils/imageUrl";
 
 const tone = (s) =>
   s === "Resolved"
@@ -58,10 +58,10 @@ export default function ManageSubmissions() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Manage Submissions
+            Manage Submissions & Verification
           </h1>
           <p className="text-sm text-slate-500">
-            Review, assign and update citizen submissions in real time.
+            Review citizen report evidence photos, verify map locations, and approve road blocks.
           </p>
         </div>
       </div>
@@ -95,13 +95,13 @@ export default function ManageSubmissions() {
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[900px]">
+          <table className="w-full text-sm min-w-[1000px]">
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
               <tr>
                 <th className="text-left px-5 py-3">ID</th>
-                <th className="text-left px-5 py-3">User</th>
-                <th className="text-left px-5 py-3">Category</th>
-                <th className="text-left px-5 py-3">Location</th>
+                <th className="text-left px-5 py-3">Evidence Photo</th>
+                <th className="text-left px-5 py-3">Report Title</th>
+                <th className="text-left px-5 py-3">Map Location</th>
                 <th className="text-left px-5 py-3">Priority</th>
                 <th className="text-left px-5 py-3">Status</th>
                 <th className="text-left px-5 py-3">Dept.</th>
@@ -122,13 +122,34 @@ export default function ManageSubmissions() {
                     <td className="px-5 py-3 font-mono text-xs text-slate-600">
                       {s.id}
                     </td>
+                    <td className="px-5 py-3">
+                      {s.image_url ? (
+                        <Link to={`/admin/submissions/${s.id}`}>
+                          <img
+                            src={getImageUrl(s.image_url)}
+                            alt="Evidence"
+                            className="h-10 w-14 object-cover rounded-lg border border-slate-200 hover:opacity-80 transition shadow-sm"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=400&q=80";
+                            }}
+                          />
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-slate-400 flex items-center gap-1">
+                          <ImageIcon className="h-3.5 w-3.5" /> No photo
+                        </span>
+                      )}
+                    </td>
                     <td className="px-5 py-3 font-semibold text-slate-900">
-                      {renderUser(s)}
+                      {s.title}
                     </td>
-                    <td className="px-5 py-3 text-slate-600 capitalize">
-                      {s.category}
+                    <td className="px-5 py-3 text-slate-600">
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                        {renderLocation(s)}
+                      </span>
                     </td>
-                    <td className="px-5 py-3 text-slate-600">{renderLocation(s)}</td>
                     <td className="px-5 py-3">
                       <Badge
                         tone={
@@ -147,16 +168,14 @@ export default function ManageSubmissions() {
                     </td>
                     <td className="px-5 py-3 text-slate-600">{s.department || "—"}</td>
                     <td className="px-5 py-3 text-slate-500">{renderDate(s)}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Link
-                          to={`/admin/submissions/${s.id}`}
-                          className="p-2 rounded-lg hover:bg-slate-100"
-                          title="View & Process"
-                        >
-                          <Eye className="h-4 w-4 text-slate-500" />
-                        </Link>
-                      </div>
+                    <td className="px-5 py-3 text-right">
+                      <Link
+                        to={`/admin/submissions/${s.id}`}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-brand-50 hover:text-brand-600 text-xs font-semibold text-slate-700 transition"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        Verify & Approve
+                      </Link>
                     </td>
                   </tr>
                 ))

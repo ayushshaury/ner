@@ -1,7 +1,9 @@
+import os
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.config import settings
-from app.api import auth, roads, submissions, routes
+from app.api import auth, roads, submissions, routes, upload
 from app.websocket.manager import manager
 import logging
 
@@ -23,11 +25,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Static file serving for user uploaded landslide images
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/static/uploads", StaticFiles(directory=UPLOAD_DIR), name="static_uploads")
+
 # Include API Routers
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(roads.router, prefix=settings.API_V1_STR)
 app.include_router(submissions.router, prefix=settings.API_V1_STR)
 app.include_router(routes.router, prefix=settings.API_V1_STR)
+app.include_router(upload.router, prefix=settings.API_V1_STR)
 
 @app.get(f"{settings.API_V1_STR}/health")
 async def health_check():
@@ -40,9 +48,8 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Keep connection open and receive optional ping messages
             data = await websocket.receive_text()
-            logger.debug(f"Received WS ping/message: {data}")
+            logger.debug(f"Received WS ping: {data}")
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
