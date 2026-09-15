@@ -4,6 +4,7 @@ import { Search, Filter, Eye, Image as ImageIcon, MapPin } from "lucide-react";
 import Card from "../../components/ui/Card";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
+import { useSubmissions } from "../../context/SubmissionsContext";
 import { getImageUrl } from "../../utils/imageUrl";
 
 const tone = (s) =>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { roadService } from "../services/roadService";
 
 const RoadNetworkContext = createContext(null);
@@ -8,6 +8,7 @@ export function RoadNetworkProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [activeRoute, setActiveRoute] = useState(null);
   const [lastRouteRequest, setLastRouteRequest] = useState(null);
+  const lastRouteRequestRef = useRef(null);
 
   const fetchRoads = useCallback(async () => {
     try {
@@ -26,7 +27,9 @@ export function RoadNetworkProvider({ children }) {
 
   const calculateRoute = useCallback(async (origin, destination) => {
     try {
-      setLastRouteRequest({ origin, destination });
+      const req = { origin, destination };
+      setLastRouteRequest(req);
+      lastRouteRequestRef.current = req;
       const routeData = await roadService.getRoute(origin, destination);
       setActiveRoute(routeData);
       return routeData;
@@ -36,7 +39,7 @@ export function RoadNetworkProvider({ children }) {
     }
   }, []);
 
-  // Real-time WebSocket synchronization for road status flips
+  // Real-time WebSocket synchronization for road status flips & automatic alternate route recalculation
   useEffect(() => {
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsHost = window.location.port === "5173" ? "localhost:8000" : window.location.host;
@@ -62,11 +65,12 @@ export function RoadNetworkProvider({ children }) {
               )
             );
 
-            // Auto recalculate route if an active route exists
-            if (lastRouteRequest) {
-              roadService.getRoute(lastRouteRequest.origin, lastRouteRequest.destination)
+            // Automatically recalculate driver route live to show alternate path
+            if (lastRouteRequestRef.current) {
+              const { origin, destination } = lastRouteRequestRef.current;
+              roadService.getRoute(origin, destination)
                 .then((newRoute) => setActiveRoute(newRoute))
-                .catch(() => {});
+                .catch((e) => console.error("Error auto recalculating alternate route:", e));
             }
           }
         } catch (e) {
@@ -80,7 +84,7 @@ export function RoadNetworkProvider({ children }) {
     return () => {
       if (ws) ws.close();
     };
-  }, [lastRouteRequest]);
+  }, []);
 
   return (
     <RoadNetworkContext.Provider

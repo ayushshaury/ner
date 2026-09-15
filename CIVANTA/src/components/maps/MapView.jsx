@@ -33,8 +33,10 @@ export default function MapView({
   const markersRef = useRef([]);
   const roadLinesRef = useRef([]);
   const routeLineRef = useRef(null);
+  const routeStartMarkerRef = useRef(null);
+  const routeEndMarkerRef = useRef(null);
 
-  const { roads, calculateRoute, activeRoute } = useRoadNetwork();
+  const { roads, calculateRoute, activeRoute, setActiveRoute } = useRoadNetwork();
   const [activeFilter, setActiveFilter] = useState("all");
   const [selected, setSelected] = useState(null);
   const [routingMode, setRoutingMode] = useState(false);
@@ -114,14 +116,13 @@ export default function MapView({
     roads.forEach((road) => {
       if (!road.geometry || !road.geometry.coordinates) return;
 
-      // GeoJSON coordinates are [lng, lat], Leaflet polyline expects [lat, lng]
       const latLngs = road.geometry.coordinates.map((pt) => [pt[1], pt[0]]);
       const isBlocked = road.status === "blocked";
       const color = isBlocked ? "#ef4444" : getRiskColor(road.risk_score);
 
       const polyline = L.polyline(latLngs, {
         color: color,
-        weight: isBlocked ? 5 : 3.5,
+        weight: isBlocked ? 6 : 3.5,
         opacity: isBlocked ? 0.95 : 0.75,
         dashArray: isBlocked ? "8, 8" : null,
       }).addTo(map);
@@ -132,7 +133,7 @@ export default function MapView({
             ${road.road_name || road.road_id}
           </div>
           <div style="margin-bottom: 4px;">
-            Status: <b style="color: ${isBlocked ? "#ef4444" : "#10b981"};">${isBlocked ? "BLOCKED 🚫" : "OPEN ✅"}</b>
+            Status: <b style="color: ${isBlocked ? "#ef4444" : "#10b981"};">${isBlocked ? "BLOCKED 🚫 (Alternate Route Active)" : "OPEN ✅"}</b>
           </div>
           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 6px; border-radius: 6px; margin-top: 4px;">
             <div><b>Risk Score:</b> ${road.risk_score} / 100</div>
@@ -147,7 +148,7 @@ export default function MapView({
     });
   }, [roads]);
 
-  // Draw Active Route
+  // Draw Active Route (Includes Alternate Route Bypassing Blocked Roads)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -156,15 +157,45 @@ export default function MapView({
       routeLineRef.current.remove();
       routeLineRef.current = null;
     }
+    if (routeStartMarkerRef.current) {
+      routeStartMarkerRef.current.remove();
+      routeStartMarkerRef.current = null;
+    }
+    if (routeEndMarkerRef.current) {
+      routeEndMarkerRef.current.remove();
+      routeEndMarkerRef.current = null;
+    }
 
     if (activeRoute && activeRoute.path && activeRoute.path.length > 0) {
+      const isDetour = activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0;
+
+      // Draw Main Route Line (Bright Blue for standard, Emerald/Blue gradient style for safe detour)
       routeLineRef.current = L.polyline(activeRoute.path, {
-        color: "#2563eb",
-        weight: 6,
+        color: isDetour ? "#2563eb" : "#0284c7",
+        weight: 7,
         opacity: 0.9,
       }).addTo(map);
 
-      map.fitBounds(routeLineRef.current.getBounds().pad(0.15));
+      // Add Start (Origin) & End (Destination) Markers
+      const startPt = activeRoute.path[0];
+      const endPt = activeRoute.path[activeRoute.path.length - 1];
+
+      const startIcon = L.divIcon({
+        className: "custom-leaflet-marker",
+        html: `<div style="background-color: #10b981; color: white; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; box-shadow: 0 0 10px rgba(0,0,0,0.4);">A</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+
+      const endIcon = L.divIcon({
+        className: "custom-leaflet-marker",
+        html: `<div style="background-color: #ef4444; color: white; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; box-shadow: 0 0 10px rgba(0,0,0,0.4);">B</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+
+      routeStartMarkerRef.current = L.marker(startPt, { icon: startIcon }).addTo(map);
+      routeEndMarkerRef.current = L.marker(endPt, { icon: endIcon }).addTo(map);
     }
   }, [activeRoute]);
 
@@ -209,10 +240,21 @@ export default function MapView({
     setRoutingMode(false);
     setRouteStart(null);
     setRouteEnd(null);
+    setActiveRoute(null);
     if (routeLineRef.current) {
       routeLineRef.current.remove();
       routeLineRef.current = null;
     }
+  };
+
+  const handleTestAlternateRoute = () => {
+    setRoutingMode(true);
+    // Preset coordinates across Guwahati road network where landslide blocks exist
+    const pStart = [26.18, 91.75];
+    const pEnd = [26.17, 91.76];
+    setRouteStart(pStart);
+    setRouteEnd(pEnd);
+    calculateRoute(pStart, pEnd);
   };
 
   return (
@@ -239,20 +281,16 @@ export default function MapView({
         ))}
 
         <div className="ml-auto flex items-center gap-2">
-          {!routingMode ? (
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setRoutingMode(true);
-                setRouteStart(null);
-                setRouteEnd(null);
-              }}
-              className="text-xs py-1.5"
-            >
-              <Navigation className="h-3.5 w-3.5 mr-1" />
-              Route Test
-            </Button>
-          ) : (
+          <Button
+            variant="secondary"
+            onClick={handleTestAlternateRoute}
+            className="text-xs py-1.5 bg-brand-50 text-brand-700 hover:bg-brand-100 font-bold border border-brand-200"
+          >
+            <Navigation className="h-3.5 w-3.5 mr-1 text-brand-600" />
+            Test Driver Alternate Route
+          </Button>
+
+          {activeRoute && (
             <Button variant="ghost" onClick={handleResetRoute} className="text-xs py-1.5 text-rose-600">
               Clear Route
             </Button>
@@ -264,13 +302,44 @@ export default function MapView({
         </div>
       </Card>
 
-      {/* Rerouted Warning Banner if active route was rerouted around blocked road */}
-      {activeRoute && activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0 && (
-        <Card className="p-3 bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
-          <div className="text-xs font-medium">
-            <span className="font-bold">Automatic Reroute Triggered!</span> Route bypasses closed road segment(s):{" "}
-            <span className="font-mono bg-amber-100 px-1.5 py-0.5 rounded">{activeRoute.reroutedAround.join(", ")}</span>
+      {/* Driver Active Route & Detour Card */}
+      {activeRoute && (
+        <Card className={`p-4 border-l-4 ${activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0 ? "border-l-emerald-500 bg-emerald-50/30" : "border-l-brand-600 bg-brand-50/20"}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className={`p-2 rounded-lg ${activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0 ? "bg-emerald-100 text-emerald-700" : "bg-brand-100 text-brand-700"}`}>
+                <Navigation className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  {activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0 ? (
+                    <span className="text-emerald-700 font-extrabold flex items-center gap-1">
+                      🛡️ Safe Alternate Detour Route Active
+                    </span>
+                  ) : (
+                    <span>Direct Driver Navigation Route</span>
+                  )}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0
+                    ? `Admin blocked road segment(s) [${activeRoute.reroutedAround.join(", ")}]. Dijkstra router automatically generated this safe alternate path.`
+                    : "Optimal path over open road network."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 text-xs font-semibold">
+              <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-xs">
+                <span className="text-slate-500 block text-[10px] uppercase">Distance</span>
+                <span className="text-slate-900 text-sm font-bold">{activeRoute.totalDistanceKm} km</span>
+              </div>
+              <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-xs">
+                <span className="text-slate-500 block text-[10px] uppercase">Risk Score</span>
+                <span className={`text-sm font-bold ${activeRoute.riskScore > 50 ? "text-amber-600" : "text-emerald-600"}`}>
+                  {activeRoute.riskScore} / 100
+                </span>
+              </div>
+            </div>
           </div>
         </Card>
       )}
