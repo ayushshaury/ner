@@ -20,6 +20,7 @@ class RoadOut(BaseModel):
     rainfall_7d_mm: Optional[float] = None
 
     status: str = "open"
+    block_reason: Optional[str] = None
     updated_at: Optional[datetime] = None
 
     class Config:

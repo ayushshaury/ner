@@ -13,7 +13,9 @@ import {
   Ban,
   Check,
   Image as ImageIcon,
-  Maximize2
+  Maximize2,
+  ShieldAlert,
+  ChevronDown
 } from "lucide-react";
 import Card from "../../components/ui/Card";
 import Badge from "../../components/ui/Badge";
@@ -30,6 +32,7 @@ export default function SubmissionDetails({ admin }) {
   const { submissions, updateSubmission } = useSubmissions();
   const { push } = useToast();
   const [imgModalOpen, setImgModalOpen] = useState(false);
+  const [selectedBlockReason, setSelectedBlockReason] = useState("Landslide & Debris Accumulation");
 
   const sub = submissions.find((s) => s.id === id) || submissions[0];
 
@@ -48,11 +51,11 @@ export default function SubmissionDetails({ admin }) {
 
   const handleApproveBlock = async () => {
     try {
-      await updateSubmission(sub.id, { status: "Verified" });
+      await updateSubmission(sub.id, { status: "Verified", block_reason: selectedBlockReason });
       push({
         type: "success",
         title: "Report Approved & Road Blocked",
-        message: `Road ${sub.road_id || ''} has been set to BLOCKED across all maps live.`,
+        message: `Road ${sub.road_id || ''} blocked due to: ${selectedBlockReason}`,
       });
     } catch {
       push({ type: "error", title: "Action Failed", message: "Could not update status." });
@@ -169,6 +172,11 @@ export default function SubmissionDetails({ admin }) {
               <h3 className="font-bold text-slate-900 text-base">
                 Linked Monitored Road ({road.road_id})
               </h3>
+              {road.status === "blocked" && (
+                <span className="text-xs font-bold text-rose-700 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  <Ban className="h-3.5 w-3.5" /> Blocked: {road.block_reason || "Landslide & Hazard"}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500">AI Risk Score:</span>
@@ -220,27 +228,66 @@ export default function SubmissionDetails({ admin }) {
 
       {/* Admin Action Bar */}
       {admin && (
-        <Card className="p-6 bg-slate-900 text-white">
-          <h3 className="font-bold text-white text-base mb-2">Admin Approval & Live Road Blocking</h3>
-          <p className="text-xs text-slate-300 mb-4">
-            Verify the pinned location and landslide photo above. Approving this report will flip road segment <span className="font-mono text-amber-300">{sub.road_id || 'linked'}</span> to <span className="text-rose-400 font-bold">BLOCKED</span> across all live client maps instantly.
-          </p>
+        <Card className="p-6 bg-gradient-to-b from-white to-slate-50/80 border border-slate-200/80 rounded-2xl shadow-sm space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/60 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0 shadow-sm">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  Admin Decision & Live Road Controls
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Assign official closure reason & verify location to flip live navigation routing across all maps.
+                </p>
+              </div>
+            </div>
+            <div className="text-xs font-mono bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 font-semibold">
+              Road ID: <span className="text-rose-600 font-bold">{sub.road_id || 'CVT-LINKED'}</span>
+            </div>
+          </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              onClick={handleApproveBlock}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
-            >
-              <Ban className="h-4 w-4 mr-1.5" />
-              Approve & Block Road
-            </Button>
-            <Button
-              onClick={handleResolve}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-            >
-              <Check className="h-4 w-4 mr-1.5" />
-              Mark Resolved (Reopen Road)
-            </Button>
+          <div className="grid md:grid-cols-12 gap-5 items-end">
+            <div className="md:col-span-6 space-y-2">
+              <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+                Select Road Block Reason:
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedBlockReason}
+                  onChange={(e) => setSelectedBlockReason(e.target.value)}
+                  className="w-full bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-900 text-xs sm:text-sm font-bold rounded-xl px-4 py-3 pr-10 outline-none focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 shadow-sm transition appearance-none cursor-pointer"
+                >
+                  <option value="Landslide & Debris Accumulation">⛰️ Landslide & Debris Accumulation</option>
+                  <option value="Severe Weather & Heavy Rain">🌧️ Severe Weather & Heavy Rain</option>
+                  <option value="High Terrain & Slope Instability">🏔️ High Terrain & Slope Instability</option>
+                  <option value="Flash Flood & Waterlogging">🌊 Flash Flood & Waterlogging</option>
+                  <option value="Infrastructure Repair & Maintenance">🚧 Infrastructure Repair & Maintenance</option>
+                  <option value="Rockfall & Erosion Hazard">🪨 Rockfall & Erosion Hazard</option>
+                </select>
+                <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                  <ChevronDown className="h-4 w-4" />
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-6 flex flex-wrap items-center gap-3 md:justify-end">
+              <Button
+                onClick={handleApproveBlock}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-5 py-3 rounded-xl shadow-md shadow-rose-600/20 active:scale-[0.98] transition-all flex items-center gap-2"
+              >
+                <Ban className="h-4 w-4" />
+                Approve & Block Road
+              </Button>
+              <Button
+                onClick={handleResolve}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-md shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center gap-2"
+              >
+                <Check className="h-4 w-4" />
+                Mark Resolved
+              </Button>
+            </div>
           </div>
         </Card>
       )}

@@ -54,6 +54,7 @@ async def format_submission(sub: Submission, db: AsyncSession) -> Dict[str, Any]
             Road.rainfall_3d_mm,
             Road.rainfall_7d_mm,
             Road.status,
+            Road.block_reason,
             Road.updated_at,
             func.ST_AsGeoJSON(Road.geometry).label("geojson_str")
         ).where(Road.road_id == sub.road_id)
@@ -75,6 +76,7 @@ async def format_submission(sub: Submission, db: AsyncSession) -> Dict[str, Any]
                 "rainfall_3d_mm": float(r_row.rainfall_3d_mm) if r_row.rainfall_3d_mm is not None else None,
                 "rainfall_7d_mm": float(r_row.rainfall_7d_mm) if r_row.rainfall_7d_mm is not None else None,
                 "status": r_row.status,
+                "block_reason": r_row.block_reason,
                 "updated_at": r_row.updated_at.isoformat() if r_row.updated_at else None,
                 "geometry": json.loads(r_row.geojson_str) if r_row.geojson_str else None
             }
@@ -206,23 +208,30 @@ async def update_submission(
             linked_road = road_res.scalar_one_or_none()
 
             if linked_road:
-                if sub.status in blocking_statuses and linked_road.status != "blocked":
+                if sub.status in blocking_statuses:
                     linked_road.status = "blocked"
+                    if sub_update.block_reason:
+                        linked_road.block_reason = sub_update.block_reason
+                    elif not linked_road.block_reason:
+                        linked_road.block_reason = "Landslide & Debris Accumulation"
+
                     road_hist = RoadStatusHistory(
                         road_id=linked_road.road_id,
                         status="blocked",
-                        reason=f"Submission {sub.id} marked as {sub.status}",
+                        reason=f"Submission {sub.id} marked as {sub.status}: {linked_road.block_reason}",
                         changed_by=current_user.id if current_user else None
                     )
                     db.add(road_hist)
                     await db.commit()
                     await manager.broadcast("road:blocked", {
                         "road_id": linked_road.road_id,
-                        "submission_id": sub.id
+                        "submission_id": sub.id,
+                        "block_reason": linked_road.block_reason
                     })
 
                 elif sub.status == "Resolved" and linked_road.status == "blocked":
                     linked_road.status = "open"
+                    linked_road.block_reason = None
                     road_hist = RoadStatusHistory(
                         road_id=linked_road.road_id,
                         status="open",

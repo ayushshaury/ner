@@ -26,6 +26,7 @@ class Road(Base):
     rainfall_7d_mm: Mapped[Optional[float]] = mapped_column(Numeric, nullable=True)
 
     status: Mapped[str] = mapped_column(Text, default="open", nullable=False)
+    block_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (

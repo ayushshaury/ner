@@ -24,9 +24,17 @@ export function SubmissionsProvider({ children }) {
 
   // Real-time WebSocket sync across all browser sessions/tabs
   useEffect(() => {
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsHost = window.location.port === "5173" ? "localhost:8000" : window.location.host;
-    const wsUrl = `${wsProtocol}//${wsHost}/ws`;
+    let wsUrl = import.meta.env.VITE_WS_URL;
+    if (!wsUrl) {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      if (apiUrl && apiUrl.startsWith("http")) {
+        wsUrl = apiUrl.replace(/^http/, "ws").replace(/\/api\/v1\/?$/, "/ws");
+      } else {
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsHost = window.location.port === "5173" ? "localhost:8000" : window.location.host;
+        wsUrl = `${wsProtocol}//${wsHost}/ws`;
+      }
+    }
 
     let ws;
     try {

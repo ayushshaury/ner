@@ -9,6 +9,7 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 
 import UserDashboard from "./pages/user/Dashboard";
+import UserMap from "./pages/user/Map";
 import Submit from "./pages/user/Submit";
 import MySubmissions from "./pages/user/MySubmissions";
 import SubmissionDetails from "./pages/user/SubmissionDetails";
@@ -28,6 +29,7 @@ import Features from "./pages/public/Features";
 import Contact from "./pages/public/Contact";
 import HowItWorks from "./pages/public/HowItWorks";
 import Impact from "./pages/public/Impact";
+
 export default function App() {
   return (
     <>
@@ -38,8 +40,7 @@ export default function App() {
           <Route path="/about" element={<About />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/features" element={<Features />} />
-          <Route path="/impact" element={<Impact
-           />} />
+          <Route path="/impact" element={<Impact />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -49,6 +50,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<UserLayout />}>
             <Route path="/dashboard" element={<UserDashboard />} />
+            <Route path="/map" element={<UserMap />} />
             <Route path="/submit" element={<Submit />} />
             <Route path="/my-submissions" element={<MySubmissions />} />
             <Route path="/submissions/:id" element={<SubmissionDetails />} />

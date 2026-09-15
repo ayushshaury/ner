@@ -3,7 +3,7 @@ export function getImageUrl(url) {
   if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
     return url;
   }
-  // Ensure starting slash
+  const backendBase = import.meta.env.VITE_BACKEND_URL || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/v1\/?$/, "") : "");
   const cleanPath = url.startsWith("/") ? url : `/${url}`;
-  return cleanPath;
+  return backendBase ? `${backendBase}${cleanPath}` : cleanPath;
 }

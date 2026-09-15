@@ -78,6 +78,7 @@ export default function MapView({
       zoom: 11,
       zoomControl: false,
       scrollWheelZoom: true,
+      doubleClickZoom: false, // Prevent map zooming on double click pin placement
     });
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -97,12 +98,12 @@ export default function MapView({
     };
   }, [interactive]);
 
-  // Click handler for manual map location picking & auto AI route computation
+  // Double-Click / Pick handler for manual map location marking & auto AI route computation
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    const onMapClick = async (e) => {
+    const onMapDblClick = async (e) => {
       const { lat, lng } = e.latlng;
       const coords = [lat, lng];
       const coordStr = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
@@ -143,10 +144,14 @@ export default function MapView({
       }
     };
 
-    map.on("click", onMapClick);
+    map.on("dblclick", onMapDblClick);
+    if (pickTarget !== "none") {
+      map.on("click", onMapDblClick);
+    }
 
     return () => {
-      map.off("click", onMapClick);
+      map.off("dblclick", onMapDblClick);
+      map.off("click", onMapDblClick);
     };
   }, [pickTarget, routeStart, routeEnd, calculateRoute]);
 
@@ -180,6 +185,11 @@ export default function MapView({
           <div style="margin-bottom: 4px;">
             Status: <b style="color: ${isBlocked ? "#ef4444" : "#10b981"};">${isBlocked ? "BLOCKED 🚫 (Excluded from Navigation)" : "OPEN ✅"}</b>
           </div>
+          ${isBlocked ? `
+            <div style="background-color: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 6px; border-radius: 6px; font-weight: 600; margin-bottom: 6px;">
+              ⚠️ Reason: ${road.block_reason || "Landslide & Hazard"}
+            </div>
+          ` : ""}
           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 6px; border-radius: 6px; margin-top: 4px;">
             <div><b>Risk Score:</b> ${road.risk_score} / 100</div>
             <div><b>Rain (7d):</b> ${road.rainfall_7d_mm ?? "—"} mm</div>
@@ -565,8 +575,8 @@ export default function MapView({
               <span className="h-3 w-3 rounded-full bg-amber-400 animate-ping" />
               <span>
                 {pickTarget === "origin"
-                  ? "📍 Map Pick Active: Click anywhere on map to set Origin (Point A)"
-                  : "🎯 Map Pick Active: Click anywhere on map to set Destination (Point B)"}
+                  ? "📍 Pin Mode Active: Double-click anywhere on map to set Origin (Point A)"
+                  : "🎯 Pin Mode Active: Double-click anywhere on map to set Destination (Point B)"}
               </span>
             </div>
             <button

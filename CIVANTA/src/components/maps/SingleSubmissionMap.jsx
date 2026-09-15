@@ -66,7 +66,12 @@ export default function SingleSubmissionMap({ lat, lng, road }) {
           <div style="font-size: 11px; margin-top: 4px;">
             Status: <b style="color: ${isBlocked ? "#ef4444" : "#10b981"};">${isBlocked ? "BLOCKED 🚫" : "OPEN ✅"}</b>
           </div>
-          <div style="font-size: 11px; color: #475569; margin-top: 2px;">
+          ${isBlocked ? `
+            <div style="font-size: 11px; color: #991b1b; font-weight: 600; margin-top: 4px; background: #fef2f2; border: 1px solid #fecaca; padding: 4px 6px; border-radius: 4px;">
+              Reason: ${road.block_reason || "Landslide & Hazard"}
+            </div>
+          ` : ""}
+          <div style="font-size: 11px; color: #475569; margin-top: 4px;">
             Risk Score: <b>${road.risk_score} / 100</b>
           </div>
         </div>

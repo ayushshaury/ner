@@ -29,6 +29,7 @@ async def get_roads(db: AsyncSession = Depends(get_db)):
         Road.rainfall_3d_mm,
         Road.rainfall_7d_mm,
         Road.status,
+        Road.block_reason,
         Road.updated_at,
         func.ST_AsGeoJSON(Road.geometry).label("geojson_str")
     )
@@ -53,6 +54,7 @@ async def get_roads(db: AsyncSession = Depends(get_db)):
             "rainfall_3d_mm": float(r.rainfall_3d_mm) if r.rainfall_3d_mm is not None else None,
             "rainfall_7d_mm": float(r.rainfall_7d_mm) if r.rainfall_7d_mm is not None else None,
             "status": r.status,
+            "block_reason": r.block_reason,
             "updated_at": r.updated_at.isoformat() if r.updated_at else None,
             "geometry": geom_dict
         })

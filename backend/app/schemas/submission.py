@@ -19,6 +19,7 @@ class SubmissionUpdate(BaseModel):
     priority: Optional[str] = None
     department: Optional[str] = None
     image_url: Optional[str] = None
+    block_reason: Optional[str] = None
 
 class SubmissionHistoryOut(BaseModel):
     id: int
