@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import Card from "../ui/Card";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
-import { MapPin, Filter, Layers, Navigation, AlertTriangle } from "lucide-react";
+import { MapPin, Filter, Layers, Navigation, AlertTriangle, ArrowUpDown, Sparkles, CheckCircle2, RotateCcw } from "lucide-react";
 import { useRoadNetwork } from "../../context/RoadNetworkContext";
 
 const statusColors = {
@@ -22,6 +22,19 @@ const getRiskColor = (score) => {
   if (score > 20) return "#0ea5e9"; // low-medium - sky
   return "#10b981"; // low risk - emerald
 };
+
+const landmarkLocations = [
+  { label: "Paltan Bazar", coords: [26.1804, 91.7535] },
+  { label: "Pan Bazar", coords: [26.1852, 91.7470] },
+  { label: "Fancy Bazaar", coords: [26.1830, 91.7375] },
+  { label: "Guwahati Club", coords: [26.1870, 91.7610] },
+  { label: "Ulubari", coords: [26.1670, 91.7620] },
+  { label: "Machkhowa", coords: [26.1770, 91.7320] },
+  { label: "Ganeshguri", coords: [26.1500, 91.7800] },
+  { label: "Dispur", coords: [26.1400, 91.7900] },
+  { label: "Khanapara", coords: [26.1150, 91.8150] },
+  { label: "Jalukbari", coords: [26.1550, 91.6850] },
+];
 
 export default function MapView({
   submissions = [],
@@ -40,8 +53,13 @@ export default function MapView({
   const [activeFilter, setActiveFilter] = useState("all");
   const [selected, setSelected] = useState(null);
   const [routingMode, setRoutingMode] = useState(false);
+  const [pickTarget, setPickTarget] = useState("none"); // "none" | "origin" | "destination"
   const [routeStart, setRouteStart] = useState(null);
   const [routeEnd, setRouteEnd] = useState(null);
+
+  const [fromLocation, setFromLocation] = useState("Paltan Bazar");
+  const [toLocation, setToLocation] = useState("Ulubari");
+  const [isCalculating, setIsCalculating] = useState(false);
 
   const filtered = submissions.filter((s) => {
     if (activeFilter === "all") return true;
@@ -79,31 +97,58 @@ export default function MapView({
     };
   }, [interactive]);
 
-  // Click handler for routing selection
+  // Click handler for manual map location picking & auto AI route computation
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    const onMapClick = (e) => {
+    const onMapClick = async (e) => {
       const { lat, lng } = e.latlng;
-      if (!routeStart) {
-        setRouteStart([lat, lng]);
-      } else if (!routeEnd) {
-        setRouteEnd([lat, lng]);
-        calculateRoute(routeStart, [lat, lng]);
+      const coords = [lat, lng];
+      const coordStr = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+      if (pickTarget === "origin" || (!routeStart && pickTarget !== "destination")) {
+        setRouteStart(coords);
+        const label = `📍 Pinned: ${coordStr}`;
+        setFromLocation(label);
+
+        if (routeEnd) {
+          setIsCalculating(true);
+          try {
+            await calculateRoute(coords, routeEnd);
+          } catch (err) {
+            console.error(err);
+          } finally {
+            setIsCalculating(false);
+          }
+          setPickTarget("none");
+        } else {
+          setPickTarget("destination");
+        }
+      } else {
+        setRouteEnd(coords);
+        const label = `🎯 Pinned: ${coordStr}`;
+        setToLocation(label);
+
+        const activeStart = routeStart || [26.1804, 91.7535];
+        setIsCalculating(true);
+        try {
+          await calculateRoute(activeStart, coords);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setIsCalculating(false);
+        }
+        setPickTarget("none");
       }
     };
 
-    if (routingMode) {
-      map.on("click", onMapClick);
-    } else {
-      map.off("click", onMapClick);
-    }
+    map.on("click", onMapClick);
 
     return () => {
       map.off("click", onMapClick);
     };
-  }, [routingMode, routeStart, routeEnd, calculateRoute]);
+  }, [pickTarget, routeStart, routeEnd, calculateRoute]);
 
   // Draw Roads Layer from PostGIS / ML model data
   useEffect(() => {
@@ -133,7 +178,7 @@ export default function MapView({
             ${road.road_name || road.road_id}
           </div>
           <div style="margin-bottom: 4px;">
-            Status: <b style="color: ${isBlocked ? "#ef4444" : "#10b981"};">${isBlocked ? "BLOCKED 🚫 (Alternate Route Active)" : "OPEN ✅"}</b>
+            Status: <b style="color: ${isBlocked ? "#ef4444" : "#10b981"};">${isBlocked ? "BLOCKED 🚫 (Excluded from Navigation)" : "OPEN ✅"}</b>
           </div>
           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 6px; border-radius: 6px; margin-top: 4px;">
             <div><b>Risk Score:</b> ${road.risk_score} / 100</div>
@@ -182,16 +227,16 @@ export default function MapView({
 
       const startIcon = L.divIcon({
         className: "custom-leaflet-marker",
-        html: `<div style="background-color: #10b981; color: white; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; box-shadow: 0 0 10px rgba(0,0,0,0.4);">A</div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+        html: `<div style="background-color: #10b981; color: white; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 0 10px rgba(0,0,0,0.4);">A</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
       });
 
       const endIcon = L.divIcon({
         className: "custom-leaflet-marker",
-        html: `<div style="background-color: #ef4444; color: white; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; box-shadow: 0 0 10px rgba(0,0,0,0.4);">B</div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+        html: `<div style="background-color: #ef4444; color: white; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 0 10px rgba(0,0,0,0.4);">B</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
       });
 
       routeStartMarkerRef.current = L.marker(startPt, { icon: startIcon }).addTo(map);
@@ -236,6 +281,37 @@ export default function MapView({
     });
   }, [filtered]);
 
+  const handleCalculateNavigation = async (overrideFrom, overrideTo) => {
+    const fName = overrideFrom || fromLocation;
+    const tName = overrideTo || toLocation;
+
+    const fItem = landmarkLocations.find((l) => l.label === fName);
+    const tItem = landmarkLocations.find((l) => l.label === tName);
+
+    const startCoords = fItem ? fItem.coords : routeStart || [26.1804, 91.7535];
+    const endCoords = tItem ? tItem.coords : routeEnd || [26.1670, 91.7620];
+
+    setRouteStart(startCoords);
+    setRouteEnd(endCoords);
+    setRoutingMode(true);
+    setIsCalculating(true);
+
+    try {
+      await calculateRoute(startCoords, endCoords);
+    } catch (err) {
+      console.error("Navigation route error:", err);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  const handleSwapLocations = () => {
+    const temp = fromLocation;
+    setFromLocation(toLocation);
+    setToLocation(temp);
+    handleCalculateNavigation(toLocation, temp);
+  };
+
   const handleResetRoute = () => {
     setRoutingMode(false);
     setRouteStart(null);
@@ -247,23 +323,206 @@ export default function MapView({
     }
   };
 
-  const handleTestAlternateRoute = () => {
-    setRoutingMode(true);
-    // Preset coordinates across Guwahati road network where landslide blocks exist
-    const pStart = [26.18, 91.75];
-    const pEnd = [26.17, 91.76];
-    setRouteStart(pStart);
-    setRouteEnd(pEnd);
-    calculateRoute(pStart, pEnd);
-  };
-
   return (
     <div className="space-y-4">
-      {/* Controls Bar */}
+      {/* AI Navigation Search Panel: Where From -> Where To */}
+      <Card className="p-4 bg-white border border-slate-200 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-brand-600 text-white flex items-center justify-center font-bold text-sm">
+              <Navigation className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="font-extrabold text-slate-900 text-sm md:text-base flex items-center gap-1.5">
+                AI Safe Navigation & Route Finder
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Sparkles className="h-3 w-3 text-emerald-600" /> Excludes Blocked Roads
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500">
+                Select your origin and destination. AI automatically computes the safest route avoiding all active landslide road blocks.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Location Selectors */}
+        <div className="grid md:grid-cols-12 gap-3 items-center">
+          {/* FROM */}
+          <div className="md:col-span-5 relative space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-bold uppercase text-slate-500 flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" /> From (Origin)
+              </label>
+              <button
+                type="button"
+                onClick={() => setPickTarget("origin")}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-md transition border ${
+                  pickTarget === "origin"
+                    ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                }`}
+              >
+                📍 Pick on Map
+              </button>
+            </div>
+            <select
+              value={fromLocation}
+              onChange={(e) => {
+                setFromLocation(e.target.value);
+                const item = landmarkLocations.find((l) => l.label === e.target.value);
+                if (item) setRouteStart(item.coords);
+              }}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none focus:border-brand-500"
+            >
+              {fromLocation.startsWith("📍 Pinned:") && (
+                <option value={fromLocation}>{fromLocation}</option>
+              )}
+              {landmarkLocations.map((l) => (
+                <option key={l.label} value={l.label}>
+                  📍 {l.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* SWAP BUTTON */}
+          <div className="md:col-span-1 flex justify-center pt-3 md:pt-4">
+            <button
+              type="button"
+              onClick={handleSwapLocations}
+              className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 transition shadow-xs"
+              title="Swap From & To"
+            >
+              <ArrowUpDown className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* TO */}
+          <div className="md:col-span-4 relative space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-bold uppercase text-slate-500 flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-rose-500 inline-block" /> To (Destination)
+              </label>
+              <button
+                type="button"
+                onClick={() => setPickTarget("destination")}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-md transition border ${
+                  pickTarget === "destination"
+                    ? "bg-rose-600 text-white border-rose-700 shadow-xs"
+                    : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                }`}
+              >
+                🎯 Pick on Map
+              </button>
+            </div>
+            <select
+              value={toLocation}
+              onChange={(e) => {
+                setToLocation(e.target.value);
+                const item = landmarkLocations.find((l) => l.label === e.target.value);
+                if (item) setRouteEnd(item.coords);
+              }}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none focus:border-brand-500"
+            >
+              {toLocation.startsWith("🎯 Pinned:") && (
+                <option value={toLocation}>{toLocation}</option>
+              )}
+              {landmarkLocations.map((l) => (
+                <option key={l.label} value={l.label}>
+                  🎯 {l.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* ACTION BUTTON */}
+          <div className="md:col-span-2 pt-3 md:pt-4">
+            <Button
+              onClick={() => handleCalculateNavigation()}
+              loading={isCalculating}
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-md"
+            >
+              Find Safe Route
+            </Button>
+          </div>
+        </div>
+
+        {/* Quick Shortcut Pills */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+          <span className="text-[11px] font-bold text-slate-400 uppercase">Popular Routes:</span>
+          {[
+            { from: "Paltan Bazar", to: "Ulubari" },
+            { from: "Pan Bazar", to: "Dispur" },
+            { from: "Fancy Bazaar", to: "Guwahati Club" },
+            { from: "Guwahati Club", to: "Ganeshguri" },
+          ].map((item, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                setFromLocation(item.from);
+                setToLocation(item.to);
+                handleCalculateNavigation(item.from, item.to);
+              }}
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-700 transition border border-slate-200"
+            >
+              {item.from} ➔ {item.to}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Driver Active Route & Detour Summary Card */}
+      {activeRoute && (
+        <Card className={`p-4 border-l-4 ${activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0 ? "border-l-emerald-500 bg-emerald-50/30" : "border-l-brand-600 bg-brand-50/20"}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className={`p-2 rounded-lg ${activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0 ? "bg-emerald-100 text-emerald-700" : "bg-brand-100 text-brand-700"}`}>
+                <Navigation className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  {activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0 ? (
+                    <span className="text-emerald-700 font-extrabold flex items-center gap-1">
+                      🛡️ Safe Alternate Detour Route Active ({fromLocation} ➔ {toLocation})
+                    </span>
+                  ) : (
+                    <span>Optimal Path ({fromLocation} ➔ {toLocation})</span>
+                  )}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0
+                    ? `Admin blocked road segment(s) [${activeRoute.reroutedAround.join(", ")}]. Dijkstra router automatically generated this safe alternate path.`
+                    : "Optimal path over open road network."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs font-semibold">
+              <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-xs">
+                <span className="text-slate-500 block text-[10px] uppercase">Distance</span>
+                <span className="text-slate-900 text-sm font-bold">{activeRoute.totalDistanceKm} km</span>
+              </div>
+              <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-xs">
+                <span className="text-slate-500 block text-[10px] uppercase">Risk Score</span>
+                <span className={`text-sm font-bold ${activeRoute.riskScore > 50 ? "text-amber-600" : "text-emerald-600"}`}>
+                  {activeRoute.riskScore} / 100
+                </span>
+              </div>
+              <Button variant="ghost" onClick={handleResetRoute} className="text-xs py-1 text-rose-600">
+                Clear
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Submissions Filter Bar */}
       <Card className="p-3 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 px-2">
           <Filter className="h-4 w-4" />
-          Filter:
+          Submissions Filter:
         </div>
 
         {["all", "Submitted", "In Progress", "Resolved", "high-priority"].map((fKey) => (
@@ -280,69 +539,10 @@ export default function MapView({
           </button>
         ))}
 
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            variant="secondary"
-            onClick={handleTestAlternateRoute}
-            className="text-xs py-1.5 bg-brand-50 text-brand-700 hover:bg-brand-100 font-bold border border-brand-200"
-          >
-            <Navigation className="h-3.5 w-3.5 mr-1 text-brand-600" />
-            Test Driver Alternate Route
-          </Button>
-
-          {activeRoute && (
-            <Button variant="ghost" onClick={handleResetRoute} className="text-xs py-1.5 text-rose-600">
-              Clear Route
-            </Button>
-          )}
-
-          <div className="text-xs text-slate-500 border-l border-slate-200 pl-3">
-            <span className="font-semibold text-slate-900">{filtered.length}</span> reports
-          </div>
+        <div className="ml-auto text-xs text-slate-500 border-l border-slate-200 pl-3">
+          <span className="font-semibold text-slate-900">{filtered.length}</span> citizen reports
         </div>
       </Card>
-
-      {/* Driver Active Route & Detour Card */}
-      {activeRoute && (
-        <Card className={`p-4 border-l-4 ${activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0 ? "border-l-emerald-500 bg-emerald-50/30" : "border-l-brand-600 bg-brand-50/20"}`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className={`p-2 rounded-lg ${activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0 ? "bg-emerald-100 text-emerald-700" : "bg-brand-100 text-brand-700"}`}>
-                <Navigation className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  {activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0 ? (
-                    <span className="text-emerald-700 font-extrabold flex items-center gap-1">
-                      🛡️ Safe Alternate Detour Route Active
-                    </span>
-                  ) : (
-                    <span>Direct Driver Navigation Route</span>
-                  )}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {activeRoute.reroutedAround && activeRoute.reroutedAround.length > 0
-                    ? `Admin blocked road segment(s) [${activeRoute.reroutedAround.join(", ")}]. Dijkstra router automatically generated this safe alternate path.`
-                    : "Optimal path over open road network."}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4 text-xs font-semibold">
-              <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-xs">
-                <span className="text-slate-500 block text-[10px] uppercase">Distance</span>
-                <span className="text-slate-900 text-sm font-bold">{activeRoute.totalDistanceKm} km</span>
-              </div>
-              <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-xs">
-                <span className="text-slate-500 block text-[10px] uppercase">Risk Score</span>
-                <span className={`text-sm font-bold ${activeRoute.riskScore > 50 ? "text-amber-600" : "text-emerald-600"}`}>
-                  {activeRoute.riskScore} / 100
-                </span>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
 
       {/* MAP */}
       <div
@@ -358,19 +558,23 @@ export default function MapView({
           }}
         />
 
-        {/* Routing Helper Floating Overlay */}
-        {routingMode && (
-          <div className="absolute top-4 left-4 bg-slate-900/90 text-white backdrop-blur rounded-xl p-3 z-[400] text-xs shadow-lg max-w-xs">
-            <div className="font-bold text-amber-400 mb-1 flex items-center gap-1">
-              <Navigation className="h-3.5 w-3.5" /> Dijkstra Server-Side Router
+        {/* Floating Map Pick Banner Overlay */}
+        {pickTarget !== "none" && (
+          <div className="absolute top-4 left-4 right-4 bg-slate-900/90 text-white backdrop-blur rounded-xl p-3 z-[400] text-xs shadow-xl flex items-center justify-between border border-amber-500/40">
+            <div className="flex items-center gap-2 font-semibold">
+              <span className="h-3 w-3 rounded-full bg-amber-400 animate-ping" />
+              <span>
+                {pickTarget === "origin"
+                  ? "📍 Map Pick Active: Click anywhere on map to set Origin (Point A)"
+                  : "🎯 Map Pick Active: Click anywhere on map to set Destination (Point B)"}
+              </span>
             </div>
-            <div>
-              {!routeStart
-                ? "Click start point on map..."
-                : !routeEnd
-                ? "Click destination point on map..."
-                : "Route calculated! Excludes all blocked roads."}
-            </div>
+            <button
+              onClick={() => setPickTarget("none")}
+              className="text-xs bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded text-slate-300 font-bold"
+            >
+              Cancel
+            </button>
           </div>
         )}
 
