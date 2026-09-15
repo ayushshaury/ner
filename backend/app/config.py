@@ -15,11 +15,6 @@ class Settings(BaseSettings):
     POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "civanta")
 
-    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "https://your-supabase-project.supabase.co")
-    SUPABASE_PUBLISHABLE_KEY: str = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
-    SUPABASE_SECRET_KEY: str = os.getenv("SUPABASE_SECRET_KEY", "")
-    SUPABASE_JWKS_URL: str = os.getenv("SUPABASE_JWKS_URL", "")
-
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     SYNC_DATABASE_URL: str = os.getenv("SYNC_DATABASE_URL", "")
 
@@ -28,7 +23,6 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:3000",
         "http://localhost:8000",
-        "https://ner-ktb1.vercel.app",
         "*"
     ]
 
@@ -36,17 +30,9 @@ class Settings(BaseSettings):
 
     def __init__(self, **values):
         super().__init__(**values)
-        if self.DATABASE_URL:
-            if self.DATABASE_URL.startswith("postgresql://"):
-                self.DATABASE_URL = self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-            elif not self.DATABASE_URL.startswith("postgresql+"):
-                self.DATABASE_URL = f"postgresql+asyncpg://{self.DATABASE_URL}"
-            
-            if not self.SYNC_DATABASE_URL:
-                self.SYNC_DATABASE_URL = self.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
-        else:
+        if not self.DATABASE_URL:
             self.DATABASE_URL = f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-            if not self.SYNC_DATABASE_URL:
-                self.SYNC_DATABASE_URL = f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        if not self.SYNC_DATABASE_URL:
+            self.SYNC_DATABASE_URL = f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
 settings = Settings()
